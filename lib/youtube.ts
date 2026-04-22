@@ -43,6 +43,10 @@ export type VideoInfo = {
   title: string;
   thumbnail: string;
   webpageUrl: string;
+  qualities: {
+    video: string[];
+    audio: string[];
+  };
 };
 
 export async function getVideoInfo(url: string): Promise<VideoInfo> {
@@ -57,12 +61,64 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
     title?: string;
     thumbnail?: string;
     webpage_url?: string;
+    formats?: Array<{
+      format_note?: string;
+      height?: number;
+      ext?: string;
+      vcodec?: string;
+      acodec?: string;
+      abr?: number;
+      asr?: number;
+    }>;
   };
+
+  const formats = parsed.formats ?? [];
+
+  const videoQualities = Array.from(
+    new Set(
+      formats
+        .filter(
+          (format) =>
+            format.vcodec &&
+            format.vcodec !== "none" &&
+            (format.height || format.format_note),
+        )
+        .map((format) => {
+          if (format.height) {
+            return `${format.height}p`;
+          }
+          if (format.format_note) {
+            return format.format_note;
+          }
+          return "Unknown";
+        }),
+    ),
+  );
+
+  const audioQualities = Array.from(
+    new Set(
+      formats
+        .filter((format) => format.acodec && format.acodec !== "none")
+        .map((format) => {
+          if (format.abr) {
+            return `${Math.round(format.abr)}kbps`;
+          }
+          if (format.asr) {
+            return `${Math.round(format.asr / 1000)}kHz`;
+          }
+          return format.ext?.toUpperCase() || "Audio";
+        }),
+    ),
+  );
 
   return {
     title: parsed.title || "YouTube video",
     thumbnail: parsed.thumbnail || "",
     webpageUrl: parsed.webpage_url || url,
+    qualities: {
+      video: videoQualities.length ? videoQualities : ["Auto"],
+      audio: audioQualities.length ? audioQualities : ["Auto"],
+    },
   };
 }
 
@@ -76,8 +132,13 @@ function buildYtDlpArgs(mode: DownloadMode, url: string): string[] {
   if (mode === "audio") {
     return [
       ...commonArgs,
+      "-x",
+      "--audio-format",
+      "mp3",
+      "--audio-quality",
+      "0",
       "-f",
-      "bestaudio[ext=m4a]/bestaudio/best",
+      "bestaudio/best",
       url,
     ];
   }
@@ -104,8 +165,8 @@ export async function buildDownloadConfig(
   const title = await getVideoTitle(url).catch(() => "youtube-download");
   const cleanTitle = sanitizeFilenamePart(title) || "youtube-download";
 
-  const extension = mode === "audio" ? "m4a" : "mp4";
-  const contentType = mode === "audio" ? "audio/mp4" : "video/mp4";
+  const extension = mode === "audio" ? "mp3" : "mp4";
+  const contentType = mode === "audio" ? "audio/mpeg" : "video/mp4";
   const filename = `${cleanTitle}.${extension}`;
 
   const child = spawn(YT_DLP_BINARY, buildYtDlpArgs(mode, url));

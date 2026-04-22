@@ -32,7 +32,7 @@ export function UrlSubmitBar({
         disabled={loading || !url.trim()}
         className="h-12 shrink-0 rounded-xl bg-red-600 px-6 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {loading ? "Loading..." : "Submit"}
+        {loading ? "Loading..." : "Fetch"}
       </button>
     </form>
   );

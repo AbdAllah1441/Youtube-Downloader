@@ -12,6 +12,10 @@ type VideoInfoResponse = {
   title: string;
   thumbnail: string;
   webpageUrl: string;
+  qualities: {
+    video: string[];
+    audio: string[];
+  };
 };
 
 type StatusKind = "info" | "success" | "error";
@@ -110,7 +114,7 @@ export function DownloaderScreen() {
       const disposition = response.headers.get("content-disposition");
       const filename =
         filenameFromDisposition(disposition) ||
-        `youtube-${mode}.${mode === "audio" ? "m4a" : "mp4"}`;
+        `youtube-${mode}.${mode === "audio" ? "mp3" : "mp4"}`;
 
       const objectUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -141,7 +145,17 @@ export function DownloaderScreen() {
 
   return (
     <main className="min-h-screen bg-[#0b0b0d] px-4 py-10">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-10">
+        <header className="space-y-6">
+          <h1 className="text-4xl text-center font-bold tracking-tight text-white sm:text-5xl">
+            YouTube Downloader
+          </h1>
+          <p className="text-center text-sm text-zinc-400 sm:text-base">
+            Paste a YouTube link, choose audio or video, and download it
+            directly to your device.
+          </p>
+        </header>
+
         <UrlSubmitBar
           url={url}
           loading={submitLoading}
@@ -154,13 +168,16 @@ export function DownloaderScreen() {
             title={videoInfo.title}
             thumbnail={videoInfo.thumbnail}
             mode={mode}
+            qualities={videoInfo.qualities}
             loading={downloadLoading}
             onModeChange={setMode}
             onDownload={handleDownload}
           />
         ) : null}
 
-        <div className={`rounded-lg border px-3 py-2 text-sm ${statusClassName}`}>
+        <div
+          className={`rounded-lg border px-3 py-2 text-sm ${statusClassName}`}
+        >
           {statusMessage}
         </div>
       </div>

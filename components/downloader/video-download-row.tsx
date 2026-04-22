@@ -8,6 +8,10 @@ type VideoDownloadRowProps = {
   title: string;
   thumbnail: string;
   mode: DownloadMode;
+  qualities: {
+    video: string[];
+    audio: string[];
+  };
   loading: boolean;
   onModeChange: (mode: DownloadMode) => void;
   onDownload: () => void;
@@ -17,10 +21,13 @@ export function VideoDownloadRow({
   title,
   thumbnail,
   mode,
+  qualities,
   loading,
   onModeChange,
   onDownload,
 }: VideoDownloadRowProps) {
+  const currentQualities = mode === "audio" ? qualities.audio : qualities.video;
+
   return (
     <div className="flex w-full max-w-4xl items-center gap-4 rounded-xl border border-white/10 bg-zinc-900/70 p-3">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -31,8 +38,11 @@ export function VideoDownloadRow({
         loading="lazy"
       />
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 space-y-2">
         <p className="truncate text-sm font-medium text-white">{title}</p>
+        <p className="truncate text-xs text-zinc-400">
+          Available {mode} qualities: {currentQualities.join(" • ")}
+        </p>
       </div>
 
       <div className="w-44 shrink-0">
