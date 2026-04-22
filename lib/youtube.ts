@@ -49,6 +49,18 @@ export type VideoInfo = {
   };
 };
 
+export type BasicVideoInfo = {
+  title: string;
+  thumbnail: string;
+  webpageUrl: string;
+};
+
+export type VideoCollectionInfo = {
+  items: BasicVideoInfo[];
+  isPlaylist: boolean;
+  playlistTitle?: string;
+};
+
 export async function getVideoInfo(url: string): Promise<VideoInfo> {
   const output = await runYtDlp([
     "--no-warnings",
@@ -134,6 +146,80 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
       video: videoQualities,
       audio: audioQualities,
     },
+  };
+}
+
+export async function getVideoCollectionInfo(
+  url: string,
+): Promise<VideoCollectionInfo> {
+  const output = await runYtDlp([
+    "--no-warnings",
+    "--flat-playlist",
+    "--dump-single-json",
+    url,
+  ]);
+
+  const parsed = JSON.parse(output) as {
+    title?: string;
+    thumbnail?: string;
+    webpage_url?: string;
+    entries?: Array<{
+      title?: string;
+      thumbnail?: string;
+      url?: string;
+      id?: string;
+      webpage_url?: string;
+    }>;
+  };
+
+  const entries = parsed.entries ?? [];
+  const isPlaylist = entries.length > 0;
+
+  if (isPlaylist) {
+    const items = entries
+      .map((entry): BasicVideoInfo | null => {
+        const videoId =
+          entry.id ||
+          (!entry.url?.startsWith("http") ? entry.url : undefined) ||
+          undefined;
+        const entryUrl =
+          entry.webpage_url ||
+          (entry.url?.startsWith("http")
+            ? entry.url
+            : entry.id
+              ? `https://www.youtube.com/watch?v=${entry.id}`
+              : "");
+        if (!entryUrl) {
+          return null;
+        }
+        const thumbnail =
+          entry.thumbnail ||
+          (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : "");
+
+        return {
+          title: entry.title || "YouTube video",
+          thumbnail,
+          webpageUrl: entryUrl,
+        };
+      })
+      .filter((item): item is BasicVideoInfo => Boolean(item));
+
+    return {
+      items,
+      isPlaylist: true,
+      playlistTitle: parsed.title || "YouTube Playlist",
+    };
+  }
+
+  return {
+    items: [
+      {
+        title: parsed.title || "YouTube video",
+        thumbnail: parsed.thumbnail || "",
+        webpageUrl: parsed.webpage_url || url,
+      },
+    ],
+    isPlaylist: false,
   };
 }
 

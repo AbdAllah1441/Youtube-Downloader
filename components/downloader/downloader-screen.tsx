@@ -8,14 +8,23 @@ import type { DownloadMode } from "@/types/downloader";
 
 const DEFAULT_ERROR = "Unable to download this video right now.";
 
-type VideoInfoResponse = {
+type VideoItem = {
+  id: string;
   title: string;
   thumbnail: string;
   webpageUrl: string;
-  qualities: {
-    video: Array<{ label: string; value: string }>;
-    audio: Array<{ label: string; value: string }>;
-  };
+  mode: DownloadMode;
+  downloadLoading: boolean;
+};
+
+type VideoInfoResponse = {
+  items: Array<{
+    title: string;
+    thumbnail: string;
+    webpageUrl: string;
+  }>;
+  isPlaylist: boolean;
+  playlistTitle?: string;
 };
 
 type StatusKind = "info" | "success" | "error";
@@ -36,11 +45,9 @@ function filenameFromDisposition(value: string | null) {
 
 export function DownloaderScreen() {
   const [url, setUrl] = useState("");
-  const [mode, setMode] = useState<DownloadMode>("video");
   const [submitLoading, setSubmitLoading] = useState(false);
-  const [downloadLoading, setDownloadLoading] = useState(false);
-  const [videoInfo, setVideoInfo] = useState<VideoInfoResponse | null>(null);
-  const [selectedQuality, setSelectedQuality] = useState("");
+  const [videos, setVideos] = useState<VideoItem[]>([]);
+  const [collectionTitle, setCollectionTitle] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState(
     "Ready when you are. Paste a YouTube URL.",
   );
@@ -76,11 +83,22 @@ export function DownloaderScreen() {
       }
 
       const info = (await response.json()) as VideoInfoResponse;
-      setVideoInfo(info);
-      setMode("video");
-      setSelectedQuality(info.qualities.video[0]?.value || "");
+      const nextVideos: VideoItem[] = info.items.map((item) => ({
+        id: item.webpageUrl,
+        title: item.title,
+        thumbnail: item.thumbnail,
+        webpageUrl: item.webpageUrl,
+        mode: "video",
+        downloadLoading: false,
+      }));
+      setVideos(nextVideos);
+      setCollectionTitle(info.isPlaylist ? info.playlistTitle || "Playlist" : null);
       setStatusKind("success");
-      setStatusMessage("Select audio/video and click download.");
+      setStatusMessage(
+        info.isPlaylist
+          ? `${nextVideos.length} videos loaded from playlist.`
+          : "Video loaded. Select audio/video and click download.",
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : DEFAULT_ERROR;
       setStatusKind("error");
@@ -90,20 +108,24 @@ export function DownloaderScreen() {
     }
   };
 
-  const handleDownload = async () => {
-    if (!videoInfo?.webpageUrl) {
+  const handleDownload = async (videoId: string) => {
+    const target = videos.find((video) => video.id === videoId);
+    if (!target) {
       return;
     }
 
-    setDownloadLoading(true);
+    setVideos((prev) =>
+      prev.map((video) =>
+        video.id === videoId ? { ...video, downloadLoading: true } : video,
+      ),
+    );
     setStatusKind("info");
     setStatusMessage("Preparing download...");
 
     try {
       const query = new URLSearchParams({
-        url: videoInfo.webpageUrl,
-        mode,
-        quality: selectedQuality,
+        url: target.webpageUrl,
+        mode: target.mode,
       });
       const response = await fetch(`/api/download?${query.toString()}`);
       if (!response.ok) {
@@ -121,7 +143,7 @@ export function DownloaderScreen() {
       const disposition = response.headers.get("content-disposition");
       const filename =
         filenameFromDisposition(disposition) ||
-        `youtube-${mode}.${mode === "audio" ? "mp3" : "mp4"}`;
+        `youtube-${target.mode}.${target.mode === "audio" ? "mp3" : "mp4"}`;
 
       const objectUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -139,20 +161,20 @@ export function DownloaderScreen() {
       setStatusKind("error");
       setStatusMessage(message);
     } finally {
-      setDownloadLoading(false);
+      setVideos((prev) =>
+        prev.map((video) =>
+          video.id === videoId ? { ...video, downloadLoading: false } : video,
+        ),
+      );
     }
   };
 
-  const handleModeChange = (nextMode: DownloadMode) => {
-    setMode(nextMode);
-    if (!videoInfo) {
-      return;
-    }
-    const nextQuality =
-      nextMode === "audio"
-        ? videoInfo.qualities.audio[0]?.value
-        : videoInfo.qualities.video[0]?.value;
-    setSelectedQuality(nextQuality || "");
+  const handleModeChange = (videoId: string, nextMode: DownloadMode) => {
+    setVideos((prev) =>
+      prev.map((video) =>
+        video.id === videoId ? { ...video, mode: nextMode } : video,
+      ),
+    );
   };
 
   const statusClassName =
@@ -164,7 +186,7 @@ export function DownloaderScreen() {
 
   return (
     <main className="min-h-screen bg-[#0b0b0d] px-4 py-10">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-10">
         <header className="space-y-6">
           <h1 className="text-4xl text-center font-bold tracking-tight text-white sm:text-5xl">
             YouTube Downloader
@@ -182,17 +204,23 @@ export function DownloaderScreen() {
           onUrlChange={setUrl}
         />
 
-        {videoInfo ? (
-          <VideoDownloadRow
-            title={videoInfo.title}
-            thumbnail={videoInfo.thumbnail}
-            mode={mode}
-            qualities={videoInfo.qualities}
-            loading={downloadLoading}
-            onModeChange={handleModeChange}
-            onDownload={handleDownload}
-          />
+        {collectionTitle ? (
+          <p className="text-center text-sm font-medium text-zinc-300">
+            {collectionTitle}
+          </p>
         ) : null}
+
+        {videos.map((video) => (
+          <VideoDownloadRow
+            key={video.id}
+            title={video.title}
+            thumbnail={video.thumbnail}
+            mode={video.mode}
+            loading={video.downloadLoading}
+            onModeChange={(nextMode) => handleModeChange(video.id, nextMode)}
+            onDownload={() => handleDownload(video.id)}
+          />
+        ))}
 
         <div
           className={`rounded-lg border px-3 py-2 text-sm ${statusClassName}`}

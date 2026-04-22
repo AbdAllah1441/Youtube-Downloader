@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getVideoInfo, validateYouTubeUrl } from "@/lib/youtube";
+import { getVideoCollectionInfo, validateYouTubeUrl } from "@/lib/youtube";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const info = await getVideoInfo(url);
+    const info = await getVideoCollectionInfo(url);
     return NextResponse.json(info);
   } catch (error) {
     const message =
