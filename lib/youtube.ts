@@ -1,9 +1,37 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { Readable } from "node:stream";
 
 import type { DownloadMode } from "@/types/downloader";
 
-const YT_DLP_BINARY = process.env.YT_DLP_PATH || "yt-dlp";
+function resolveYtDlpBinary(): string {
+  if (process.env.YT_DLP_PATH) {
+    return process.env.YT_DLP_PATH;
+  }
+
+  const candidates = [
+    join(homedir(), ".local", "bin", "yt-dlp"),
+    "/usr/local/bin/yt-dlp",
+    "/usr/bin/yt-dlp",
+    "/opt/homebrew/bin/yt-dlp",
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    } catch {
+      // ignore and keep looking
+    }
+  }
+
+  return "yt-dlp";
+}
+
+const YT_DLP_BINARY = resolveYtDlpBinary();
 
 const YOUTUBE_URL_REGEX =
   /^(https?:\/\/)?(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\/.+/i;
@@ -36,7 +64,13 @@ function runYtDlp(args: string[]): Promise<string> {
 }
 
 export async function getVideoTitle(url: string): Promise<string> {
-  return runYtDlp(["--no-warnings", "--skip-download", "--print", "title", url]);
+  return runYtDlp([
+    "--no-warnings",
+    "--skip-download",
+    "--print",
+    "title",
+    url,
+  ]);
 }
 
 export type VideoInfo = {
@@ -227,7 +261,11 @@ function sanitizeFilenamePart(value: string): string {
   return value.replace(/[<>:"/\\|?*\x00-\x1F]/g, "").trim();
 }
 
-function buildYtDlpArgs(mode: DownloadMode, url: string, quality?: string): string[] {
+function buildYtDlpArgs(
+  mode: DownloadMode,
+  url: string,
+  quality?: string,
+): string[] {
   const commonArgs = ["--no-warnings", "--no-playlist", "-o", "-"];
 
   if (mode === "audio") {
@@ -244,12 +282,7 @@ function buildYtDlpArgs(mode: DownloadMode, url: string, quality?: string): stri
     ];
   }
 
-  return [
-    ...commonArgs,
-    "-f",
-    quality || "best[ext=mp4]/best",
-    url,
-  ];
+  return [...commonArgs, "-f", quality || "best[ext=mp4]/best", url];
 }
 
 export type DownloadConfig = {

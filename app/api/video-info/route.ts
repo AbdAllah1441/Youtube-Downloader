@@ -9,7 +9,10 @@ export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url")?.trim();
 
   if (!url) {
-    return NextResponse.json({ error: "Missing YouTube URL." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing YouTube URL." },
+      { status: 400 },
+    );
   }
 
   if (!validateYouTubeUrl(url)) {
@@ -24,7 +27,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(info);
   } catch (error) {
     const message =
-      error instanceof Error ? error.message.split("\n")[0] : "Failed to load video.";
+      error instanceof Error
+        ? error.message.split("\n")[0]
+        : "Failed to load video.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
