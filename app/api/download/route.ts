@@ -45,6 +45,7 @@ function toAsciiFilename(value: string): string {
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url")?.trim();
   const modeParam = request.nextUrl.searchParams.get("mode") ?? "video";
+  const qualityParam = request.nextUrl.searchParams.get("quality")?.trim();
 
   if (!url) {
     return NextResponse.json({ error: "Missing YouTube URL." }, { status: 400 });
@@ -64,10 +65,15 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  if (qualityParam && !/^[a-zA-Z0-9+_.-]+$/.test(qualityParam)) {
+    return NextResponse.json({ error: "Invalid quality format." }, { status: 400 });
+  }
+
   try {
     const { stream, filename, contentType, onError } = await buildDownloadConfig(
       url,
       modeParam,
+      qualityParam,
     );
     const asciiFilename = toAsciiFilename(filename);
 

@@ -44,8 +44,8 @@ export type VideoInfo = {
   thumbnail: string;
   webpageUrl: string;
   qualities: {
-    video: string[];
-    audio: string[];
+    video: Array<{ label: string; value: string }>;
+    audio: Array<{ label: string; value: string }>;
   };
 };
 
@@ -62,6 +62,7 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
     thumbnail?: string;
     webpage_url?: string;
     formats?: Array<{
+      format_id?: string;
       format_note?: string;
       height?: number;
       ext?: string;
@@ -74,50 +75,64 @@ export async function getVideoInfo(url: string): Promise<VideoInfo> {
 
   const formats = parsed.formats ?? [];
 
-  const videoQualities = Array.from(
-    new Set(
-      formats
-        .filter(
-          (format) =>
-            format.vcodec &&
-            format.vcodec !== "none" &&
-            (format.height || format.format_note),
-        )
-        .map((format) => {
-          if (format.height) {
-            return `${format.height}p`;
-          }
-          if (format.format_note) {
-            return format.format_note;
-          }
-          return "Unknown";
-        }),
-    ),
-  );
+  const videoSeen = new Set<string>();
+  const videoQualities = formats
+    .filter(
+      (format) =>
+        format.format_id &&
+        format.vcodec &&
+        format.vcodec !== "none" &&
+        format.acodec &&
+        format.acodec !== "none",
+    )
+    .map((format) => {
+      const quality = format.height
+        ? `${format.height}p`
+        : format.format_note || "Video";
+      const label = `${quality}${format.ext ? ` (${format.ext.toUpperCase()})` : ""}`;
+      return { label, value: format.format_id as string };
+    })
+    .filter((item) => {
+      if (videoSeen.has(item.label)) {
+        return false;
+      }
+      videoSeen.add(item.label);
+      return true;
+    });
 
-  const audioQualities = Array.from(
-    new Set(
-      formats
-        .filter((format) => format.acodec && format.acodec !== "none")
-        .map((format) => {
-          if (format.abr) {
-            return `${Math.round(format.abr)}kbps`;
-          }
-          if (format.asr) {
-            return `${Math.round(format.asr / 1000)}kHz`;
-          }
-          return format.ext?.toUpperCase() || "Audio";
-        }),
-    ),
-  );
+  const audioSeen = new Set<string>();
+  const audioQualities = formats
+    .filter(
+      (format) =>
+        format.format_id &&
+        format.acodec &&
+        format.acodec !== "none" &&
+        (!format.vcodec || format.vcodec === "none"),
+    )
+    .map((format) => {
+      const quality = format.abr
+        ? `${Math.round(format.abr)}kbps`
+        : format.asr
+          ? `${Math.round(format.asr / 1000)}kHz`
+          : "Audio";
+      const label = `${quality}${format.ext ? ` (${format.ext.toUpperCase()})` : ""}`;
+      return { label, value: format.format_id as string };
+    })
+    .filter((item) => {
+      if (audioSeen.has(item.label)) {
+        return false;
+      }
+      audioSeen.add(item.label);
+      return true;
+    });
 
   return {
     title: parsed.title || "YouTube video",
     thumbnail: parsed.thumbnail || "",
     webpageUrl: parsed.webpage_url || url,
     qualities: {
-      video: videoQualities.length ? videoQualities : ["Auto"],
-      audio: audioQualities.length ? audioQualities : ["Auto"],
+      video: videoQualities,
+      audio: audioQualities,
     },
   };
 }
@@ -126,7 +141,7 @@ function sanitizeFilenamePart(value: string): string {
   return value.replace(/[<>:"/\\|?*\x00-\x1F]/g, "").trim();
 }
 
-function buildYtDlpArgs(mode: DownloadMode, url: string): string[] {
+function buildYtDlpArgs(mode: DownloadMode, url: string, quality?: string): string[] {
   const commonArgs = ["--no-warnings", "--no-playlist", "-o", "-"];
 
   if (mode === "audio") {
@@ -138,7 +153,7 @@ function buildYtDlpArgs(mode: DownloadMode, url: string): string[] {
       "--audio-quality",
       "0",
       "-f",
-      "bestaudio/best",
+      quality || "bestaudio/best",
       url,
     ];
   }
@@ -146,7 +161,7 @@ function buildYtDlpArgs(mode: DownloadMode, url: string): string[] {
   return [
     ...commonArgs,
     "-f",
-    "best[ext=mp4]/best",
+    quality || "best[ext=mp4]/best",
     url,
   ];
 }
@@ -161,6 +176,7 @@ export type DownloadConfig = {
 export async function buildDownloadConfig(
   url: string,
   mode: DownloadMode,
+  quality?: string,
 ): Promise<DownloadConfig> {
   const title = await getVideoTitle(url).catch(() => "youtube-download");
   const cleanTitle = sanitizeFilenamePart(title) || "youtube-download";
@@ -169,7 +185,7 @@ export async function buildDownloadConfig(
   const contentType = mode === "audio" ? "audio/mpeg" : "video/mp4";
   const filename = `${cleanTitle}.${extension}`;
 
-  const child = spawn(YT_DLP_BINARY, buildYtDlpArgs(mode, url));
+  const child = spawn(YT_DLP_BINARY, buildYtDlpArgs(mode, url, quality));
 
   let stderrBuffer = "";
   child.stderr.on("data", (chunk) => {

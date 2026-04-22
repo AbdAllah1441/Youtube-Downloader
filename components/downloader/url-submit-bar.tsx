@@ -16,7 +16,7 @@ export function UrlSubmitBar({
   onSubmit,
 }: UrlSubmitBarProps) {
   return (
-    <form onSubmit={onSubmit} className="flex w-full max-w-4xl gap-3">
+    <form onSubmit={onSubmit} className="flex w-full max-w-6xl gap-3">
       <input
         type="url"
         inputMode="url"

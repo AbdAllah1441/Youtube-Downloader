@@ -13,8 +13,8 @@ type VideoInfoResponse = {
   thumbnail: string;
   webpageUrl: string;
   qualities: {
-    video: string[];
-    audio: string[];
+    video: Array<{ label: string; value: string }>;
+    audio: Array<{ label: string; value: string }>;
   };
 };
 
@@ -40,6 +40,7 @@ export function DownloaderScreen() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [videoInfo, setVideoInfo] = useState<VideoInfoResponse | null>(null);
+  const [selectedQuality, setSelectedQuality] = useState("");
   const [statusMessage, setStatusMessage] = useState(
     "Ready when you are. Paste a YouTube URL.",
   );
@@ -76,6 +77,8 @@ export function DownloaderScreen() {
 
       const info = (await response.json()) as VideoInfoResponse;
       setVideoInfo(info);
+      setMode("video");
+      setSelectedQuality(info.qualities.video[0]?.value || "");
       setStatusKind("success");
       setStatusMessage("Select audio/video and click download.");
     } catch (error) {
@@ -97,7 +100,11 @@ export function DownloaderScreen() {
     setStatusMessage("Preparing download...");
 
     try {
-      const query = new URLSearchParams({ url: videoInfo.webpageUrl, mode });
+      const query = new URLSearchParams({
+        url: videoInfo.webpageUrl,
+        mode,
+        quality: selectedQuality,
+      });
       const response = await fetch(`/api/download?${query.toString()}`);
       if (!response.ok) {
         let errorMessage = DEFAULT_ERROR;
@@ -136,6 +143,18 @@ export function DownloaderScreen() {
     }
   };
 
+  const handleModeChange = (nextMode: DownloadMode) => {
+    setMode(nextMode);
+    if (!videoInfo) {
+      return;
+    }
+    const nextQuality =
+      nextMode === "audio"
+        ? videoInfo.qualities.audio[0]?.value
+        : videoInfo.qualities.video[0]?.value;
+    setSelectedQuality(nextQuality || "");
+  };
+
   const statusClassName =
     statusKind === "error"
       ? "border-red-500/30 bg-red-500/10 text-red-200"
@@ -145,7 +164,7 @@ export function DownloaderScreen() {
 
   return (
     <main className="min-h-screen bg-[#0b0b0d] px-4 py-10">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-10">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-10">
         <header className="space-y-6">
           <h1 className="text-4xl text-center font-bold tracking-tight text-white sm:text-5xl">
             YouTube Downloader
@@ -170,7 +189,7 @@ export function DownloaderScreen() {
             mode={mode}
             qualities={videoInfo.qualities}
             loading={downloadLoading}
-            onModeChange={setMode}
+            onModeChange={handleModeChange}
             onDownload={handleDownload}
           />
         ) : null}

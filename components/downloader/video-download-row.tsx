@@ -9,8 +9,8 @@ type VideoDownloadRowProps = {
   thumbnail: string;
   mode: DownloadMode;
   qualities: {
-    video: string[];
-    audio: string[];
+    video: Array<{ label: string; value: string }>;
+    audio: Array<{ label: string; value: string }>;
   };
   loading: boolean;
   onModeChange: (mode: DownloadMode) => void;
@@ -29,27 +29,34 @@ export function VideoDownloadRow({
   const currentQualities = mode === "audio" ? qualities.audio : qualities.video;
 
   return (
-    <div className="flex w-full max-w-4xl items-center gap-4 rounded-xl border border-white/10 bg-zinc-900/70 p-3">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={thumbnail}
-        alt={title}
-        className="h-20 w-36 rounded-lg object-cover"
-        loading="lazy"
-      />
+    <div className="w-full max-w-6xl rounded-xl border border-white/10 bg-zinc-900/70 p-3">
+      <div className="flex items-center gap-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={thumbnail}
+          alt={title}
+          className="w-50 rounded-lg object-cover"
+          loading="lazy"
+        />
 
-      <div className="min-w-0 flex-1 space-y-2">
-        <p className="truncate text-sm font-medium text-white">{title}</p>
-        <p className="truncate text-xs text-zinc-400">
-          Available {mode} qualities: {currentQualities.join(" • ")}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-center text-xl font-semibold text-white sm:text-2xl">
+            {title}
+          </p>
+        </div>
+
+        <div className="w-full max-w-xs space-y-3 md:ml-auto">
+          <ModeSelector value={mode} onChange={onModeChange} />
+        </div>
       </div>
 
-      <div className="w-44 shrink-0">
-        <ModeSelector value={mode} onChange={onModeChange} />
+      <div className="mt-3">
+        <DownloadButton
+          loading={loading}
+          disabled={loading || currentQualities.length === 0}
+          onClick={onDownload}
+        />
       </div>
-
-      <DownloadButton loading={loading} disabled={loading} onClick={onDownload} />
     </div>
   );
 }
